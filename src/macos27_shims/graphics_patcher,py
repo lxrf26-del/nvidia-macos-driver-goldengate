@@ -1,0 +1,55 @@
+"""
+NVIDIA macOS Driver Golden Gate Extension - Graphics Framebuffer Patcher
+Injects device properties and hardware shims to manage Intel Iris Pro 5200
+and AMD Radeon R9 configurations on 2015 MacBook Pro models under macOS 27.
+"""
+
+class GoldenGateGraphicsPatcher:
+    @staticmethod
+    def patch_intel_iris_pro(config_plist: dict) -> dict:
+        """
+        Injects VESA parameters and forces standard stolen memory size allocations
+        for the Haswell Intel Iris Pro 5200 (Crystalwell) integrated controller.
+        """
+        igpu_path = "PPCI0@0/AppleACPIPCI/IGPU@2"
+        
+        if "DeviceProperties" not in config_plist:
+            config_plist["DeviceProperties"] = {"Add": {}}
+        if "Add" not in config_plist["DeviceProperties"]:
+            config_plist["DeviceProperties"]["Add"] = {}
+        if igpu_path not in config_plist["DeviceProperties"]["Add"]:
+            config_plist["DeviceProperties"]["Add"][igpu_path] = {}
+
+        # Inject critical graphics overrides to prevent early screen blanking
+        config_plist["DeviceProperties"]["Add"][igpu_path].update({
+            "AAPL,slot-name": "Built-In",
+            "device_type": "Display Controller",
+            "model": "Intel Iris Pro 5200 (VESA Fallback)",
+            "framebuffer-patch-enable": [0x01, 0x00, 0x00, 0x00],
+            "framebuffer-stolenmem": [0x00, 0x00, 0x30, 0x01],   # Adjusts DVMT Pre-Allocation limits
+            "framebuffer-fbmem": [0x00, 0x00, 0x90, 0x00],       # Modifies raw framebuffer allocation size arrays
+            "disable-metal-accel": [0x01, 0x00, 0x00, 0x00]      # Bypasses hardware compiler loops before v3 drops
+        })
+        return config_plist
+
+    @staticmethod
+    def patch_dedicated_amd(config_plist: dict) -> dict:
+        """
+        Configures device property flags for the dedicated AMD Radeon R9 M370X 
+        found on high-end MacBookPro11,5 models to force unaccelerated frame buffer loops.
+        """
+        egpu_path = "PPCI0@0/AppleACPIPCI/PEG0@1/PEGP@0"
+        
+        if "DeviceProperties" not in config_plist:
+            config_plist["DeviceProperties"] = {"Add": {}}
+        if "Add" not in config_plist["DeviceProperties"]:
+            config_plist["DeviceProperties"]["Add"] = {}
+        if egpu_path not in config_plist["DeviceProperties"]["Add"]:
+            config_plist["DeviceProperties"]["Add"][egpu_path] = {}
+
+        config_plist["DeviceProperties"]["Add"][egpu_path].update({
+            "model": "AMD Radeon R9 M370X (Early Support Fallback)",
+            "override-no-acceleration": [0x01, 0x00, 0x00, 0x00],
+            "rad_disable": [0x01, 0x00, 0x00, 0x00] # Option to bypass if tracking pure integrated Iris paths
+        })
+        return config_plist
