@@ -96,3 +96,5 @@ if __name__ == "__main__":
     
     patcher = MacOS27Patcher(target_plist)
     patcher.run_all()
+# Package your compiled local repository bin
+tar -czf nullmoth-nvidia-fork.tar.gz pkgroot/
